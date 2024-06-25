@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024-present wiesbadener
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import gradio as gr
 from openai import OpenAI
 from dotenv import load_dotenv
