@@ -26,15 +26,14 @@ def get_user_prompt() -> str:
 def print_like_dislike(x: gr.LikeData):
     print(x.index, x.value, x.liked)
 
-def generate_question(
+def generate_questions(
         system_prompt: str, 
         user_example: str, 
         assistant_example: str, 
         chat_input: str, 
         temperature: float, 
         max_tokens: int, 
-        model_name: str, 
-        chat_history: list
+        model_name: str
         ) -> str:
     """
     Generates a question using the OpenAI Chat API.
@@ -50,7 +49,7 @@ def generate_question(
         chat_history (list): A list of tuples containing the chat history, where each tuple contains a user message and an assistant message.
 
     Returns:
-        str: The generated question.
+        list: List of generated questions.
 
     """
     
@@ -61,10 +60,6 @@ def generate_question(
         messages.append({"role": "user", "content": user_example})
     if assistant_example:
         messages.append({"role": "assistant", "content": assistant_example})
-    if chat_history:
-        for human, ai in chat_history:
-            messages.append({"role": "user", "content": human})
-            messages.append({"role": "assistant", "content": ai})
     if chat_input:
         messages.append({"role": "user", "content": chat_input})
     
@@ -73,52 +68,12 @@ def generate_question(
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
-        n=1,
+        n=2,
         stop=None
     )
 
-    return response.choices[0].message.content
+    return [choice.message.content for choice in response.choices]
 
-def on_click(
-        system_prompt: str, 
-        user_example: str, 
-        assistant_example: str, 
-        chat_input: str, 
-        temperature: float, 
-        max_tokens: int, 
-        model_name: str, 
-        chat_history: list
-        ) -> tuple[str, list]:
-    """
-    Generates a response based on the given inputs and updates the chat history.
-
-    Args:
-        system_prompt (str): The system prompt for generating the response.
-        user_example (str): An example of user input.
-        assistant_example (str): An example of assistant input.
-        chat_input (str): The user's input for the current chat.
-        temperature (float): The temperature parameter for response generation.
-        max_tokens (int): The maximum number of tokens in the generated response.
-        model_name (str): The name of the model used for response generation.
-        chat_history (list): The chat history containing previous user and assistant inputs.
-
-    Returns:
-        tuple[str, list]: A tuple containing a empty string to reset user prompt textbox and the updated chat history.
-    """
-    
-    response = generate_question(
-        system_prompt, 
-        user_example, 
-        assistant_example, 
-        chat_input, 
-        temperature,
-        max_tokens,
-        model_name,
-        chat_history
-    )
-    empty_user_inputt = ""
-    chat_history.append([chat_input, response])
-    return empty_user_inputt, chat_history
 
 with gr.Blocks() as demo:
     with gr.Row():
@@ -127,21 +82,26 @@ with gr.Blocks() as demo:
             max_tokens = gr.Slider(minimum=1, maximum=2048, value=20, label="Max Tokens")
             model_name = gr.Dropdown(choices=["gpt-3.5-turbo", 'Other'], value="gpt-3.5-turbo", label="Model Name")
         with gr.Column(scale=4):
+            
+            response_state_component = gr.State([])
+
             with gr.Accordion("System prompt and single-shot example", open=False):
                 system_prompt = gr.Textbox(value=SYSTEM_PROMPT, placeholder="Enter system prompt here...", label="System Prompt")
                 user_example = gr.Textbox(value=USER_EXAMPLE, lines=3, placeholder="Enter example user prompt here...", label="User Example")
                 assistant_example = gr.Textbox(value=ASSISTANT_EXAMPLE, placeholder="Enter example assistant output here...", label="Assistant Example")
 
-            chatbot = gr.Chatbot()
             user_prompt = gr.Textbox(value=get_user_prompt, placeholder="Enter your text here...", label="User prompt")
-            clear = gr.ClearButton([chatbot], value='Clear Chat')
 
-            chatbot.like(print_like_dislike, None, None)
+            generate_response = gr.Button("Generate Response", value="Generate Response")
 
-            user_prompt.submit(
-                fn=on_click, 
-                inputs=[system_prompt, user_example, assistant_example, user_prompt, temperature, max_tokens, model_name, chatbot],
-                outputs=[user_prompt, chatbot]
+            generate_response.click(
+                fn=generate_questions, 
+                inputs=[system_prompt, user_example, assistant_example, user_prompt, temperature, max_tokens, model_name], 
+                outputs=response_state_component
                 )
             
+            @gr.render(inputs=[response_state_component])
+            def show_split(response_list: list):
+                checked_questions = gr.CheckboxGroup(response_list, label="Questions", info="List of questions generated by the model.")
+                
 demo.launch()
